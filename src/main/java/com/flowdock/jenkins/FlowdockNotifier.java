@@ -16,6 +16,7 @@ import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.QueryParameter;
+import org.jenkinsci.plugins.tokenmacro.TokenMacro;
 
 import java.io.PrintStream;
 import java.util.HashMap;
@@ -122,17 +123,18 @@ public class FlowdockNotifier extends Notifier {
         try {
             FlowdockAPI api = new FlowdockAPI(getDescriptor().apiUrl(), flowToken);
             TeamInboxMessage msg = TeamInboxMessage.fromBuild(build, buildResult);
-            msg.setTags(notificationTags);
+            String expandedTags = TokenMacro.expandAll(build, listener, notificationTags);
+            msg.setTags(expandedTags);
             api.pushTeamInboxMessage(msg);
             listener.getLogger().println("Flowdock: Team Inbox notification sent successfully");
 
             if(build.getResult() != Result.SUCCESS && chatNotification) {
                 ChatMessage chatMsg = ChatMessage.fromBuild(build, buildResult);
-                chatMsg.setTags(notificationTags);
+                chatMsg.setTags(expandedTags);
                 api.pushChatMessage(chatMsg);
                 logger.println("Flowdock: Chat notification sent successfully");
             }
-        } catch(FlowdockException ex) {
+        } catch(Exception ex) {
             logger.println("Flowdock: failed to send notification");
             logger.println("Flowdock: " + ex.getMessage());
         }
