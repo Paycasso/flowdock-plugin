@@ -40,10 +40,9 @@
       <url>http://repo.jenkins-ci.org/public/</url>
     </repository>
     <repository>
-              <id>java.net-m2-repository</id>
-              <url>http://maven.jenkins-ci.org:8081/content/repositories/releases/
-              </url>
-            </repository>
+      <id>java.net-m2-repository</id>
+      <url>http://maven.jenkins-ci.org:8081/content/repositories/releases/</url>
+    </repository>
   </repositories>
 
   <pluginRepositories>
@@ -52,11 +51,18 @@
       <url>http://repo.jenkins-ci.org/public/</url>
     </pluginRepository>
     <pluginRepository>
-              <id>jenkins-m2-repository</id>
-              <name>Jenkins Plugin Repository</name>
-              <url>http://maven.jenkins-
-    ci.org:8081/content/repositories/releases/</url>
-              <layout>default</layout>
-            </pluginRepository>
+      <id>jenkins-m2-repository</id>
+      <name>Jenkins Plugin Repository</name>
+      <url>http://maven.jenkins-ci.org:8081/content/repositories/releases/</url>
+      <layout>default</layout>
+    </pluginRepository>
   </pluginRepositories>
+  <dependencies>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>token-macro</artifactId>
+      <version>1.10</version>
+      <optional>true</optional>
+    </dependency>
+  </dependencies>
 </project>
