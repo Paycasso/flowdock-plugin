@@ -3,6 +3,7 @@ package com.flowdock.jenkins;
 import com.flowdock.jenkins.exception.FlowdockException;
 import hudson.Extension;
 import hudson.Launcher;
+import hudson.Plugin;
 import hudson.util.FormValidation;
 import hudson.model.AbstractBuild;
 import hudson.model.BuildListener;
@@ -16,8 +17,8 @@ import net.sf.json.JSONObject;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.QueryParameter;
-import org.jenkinsci.plugins.tokenmacro.TokenMacro;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,6 +37,7 @@ public class FlowdockNotifier extends Notifier {
     private final boolean notifyUnstable;
     private final boolean notifyAborted;
     private final boolean notifyNotBuilt;
+    private final Plugin tokenMacroPlugin;
 
     // Fields in config.jelly must match the parameter names in the "DataBoundConstructor"
     @DataBoundConstructor
@@ -61,6 +63,9 @@ public class FlowdockNotifier extends Notifier {
         this.notifyMap.put(BuildResult.UNSTABLE, this.notifyUnstable);
         this.notifyMap.put(BuildResult.ABORTED, this.notifyAborted);
         this.notifyMap.put(BuildResult.NOT_BUILT, this.notifyNotBuilt);
+
+        // set up optional dependency plugins
+        tokenMacroPlugin  = jenkins.model.Jenkins.getInstance().getPlugin("token-macro");
     }
 
     public String getFlowToken() {
@@ -104,7 +109,7 @@ public class FlowdockNotifier extends Notifier {
     }
 
     @Override
-    public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener) {
+    public boolean perform(AbstractBuild build, Launcher launcher, BuildListener listener) throws IOException, InterruptedException {
         BuildResult buildResult = BuildResult.fromBuild(build);
         if(shouldNotify(buildResult)) {
             notifyFlowdock(build, buildResult, listener);
@@ -118,15 +123,25 @@ public class FlowdockNotifier extends Notifier {
         return notifyMap.get(buildResult);
     }
 
-    protected void notifyFlowdock(AbstractBuild build, BuildResult buildResult, BuildListener listener) {
+    protected void notifyFlowdock(AbstractBuild build, BuildResult buildResult, BuildListener listener) throws IOException, InterruptedException {
         PrintStream logger = listener.getLogger();
         try {
             FlowdockAPI api = new FlowdockAPI(getDescriptor().apiUrl(), flowToken);
             TeamInboxMessage msg = TeamInboxMessage.fromBuild(build, buildResult);
-            String expandedTags = TokenMacro.expandAll(build, listener, notificationTags);
+            String expandedTags = null;
+
+            if(tokenMacroPlugin != null) {
+                try {
+                    expandedTags = org.jenkinsci.plugins.tokenmacro.TokenMacro.expandAll(build, listener, notificationTags);
+                } catch(org.jenkinsci.plugins.tokenmacro.MacroEvaluationException e) {
+                    logger.println("Error substituting with token-macro plugin: " + e);
+                }
+            } else {
+                expandedTags = notificationTags;
+            }
             msg.setTags(expandedTags);
             api.pushTeamInboxMessage(msg);
-            listener.getLogger().println("Flowdock: Team Inbox notification sent successfully");
+            logger.println("Flowdock: Team Inbox notification sent successfully");
 
             if(build.getResult() != Result.SUCCESS && chatNotification) {
                 ChatMessage chatMsg = ChatMessage.fromBuild(build, buildResult);
@@ -134,7 +149,7 @@ public class FlowdockNotifier extends Notifier {
                 api.pushChatMessage(chatMsg);
                 logger.println("Flowdock: Chat notification sent successfully");
             }
-        } catch(Exception ex) {
+        } catch(FlowdockException ex) {
             logger.println("Flowdock: failed to send notification");
             logger.println("Flowdock: " + ex.getMessage());
         }
